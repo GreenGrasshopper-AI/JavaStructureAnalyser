@@ -5,6 +5,14 @@
   "version": "0.1.0",
   "publisher": "greengrasshopper-ai",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser/issues"
+  },
+  "homepage": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser#readme",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -37,11 +45,14 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "vitest run",
-    "lint": "tsc --noEmit -p ./"
+    "lint": "tsc --noEmit -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.9"
   }

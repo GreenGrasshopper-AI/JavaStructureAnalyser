@@ -15,16 +15,17 @@ Large Java codebases can contain hundreds or thousands of classes. A complete de
 
 ## How It Works
 
-1. Open a Java file in VS Code.
-2. Run **Java Structure Analyser: Open Graph** from the Command Palette.
-3. The selected class appears as the central node.
-4. Nearby incoming and outgoing classes are rendered as temporary nodes.
-5. Double-click relevant nodes to pin them.
-6. Move through the codebase and repeat until the diagram represents the structure you care about.
+1. Open a Java workspace in VS Code.
+2. Open a Java file for the class you want to inspect.
+3. Run **Java Structure Analyser: Open Graph** from the Command Palette or the Java editor title menu.
+4. The selected class appears as the central node.
+5. Nearby incoming and outgoing classes are rendered as temporary nodes.
+6. Double-click relevant nodes to pin them permanently.
+7. Move through the codebase and repeat until the diagram represents the structure you care about.
 
 ## Current Analysis Scope
 
-The first implementation uses lightweight static parsing to identify common Java relationships:
+The current implementation uses lightweight static parsing to identify common Java relationships:
 
 - `new ClassName(...)` instantiations
 - field declarations
@@ -35,6 +36,28 @@ The first implementation uses lightweight static parsing to identify common Java
 - method calls on variables with known local or parameter types
 
 This makes the extension fast and dependency-light, while leaving room for future integration with richer Java language-server metadata.
+
+## Requirements
+
+- Visual Studio Code `1.95.0` or newer.
+- A workspace containing Java source files.
+- Node.js and npm for development or packaging from source.
+
+## Install from a VSIX Package
+
+After a `.vsix` file has been built, install it in one of these ways:
+
+### VS Code UI
+
+1. Open the Extensions view.
+2. Select **...** → **Install from VSIX...**.
+3. Choose the generated file, for example `java-structure-analyser-0.1.0.vsix`.
+
+### Command Line
+
+```bash
+code --install-extension java-structure-analyser-0.1.0.vsix
+```
 
 ## Development
 
@@ -56,7 +79,40 @@ Compile the extension:
 npm run compile
 ```
 
+Run TypeScript type checking without emitting files:
+
+```bash
+npm run lint
+```
+
 Open the project in VS Code and press `F5` to launch an Extension Development Host.
+
+## Build a VSIX Package
+
+This repository includes `@vscode/vsce` as a development dependency and exposes an npm script for packaging.
+
+Build the extension package:
+
+```bash
+npm run package
+```
+
+The package command runs the VS Code prepublish step first, so the TypeScript sources are compiled into `dist/` before the `.vsix` file is created.
+
+Expected output artifact:
+
+```text
+java-structure-analyser-0.1.0.vsix
+```
+
+Before publishing or sharing a package, it is recommended to run the full local verification set:
+
+```bash
+npm test
+npm run lint
+npm run compile
+npm run package
+```
 
 ## Repository Goals
 
