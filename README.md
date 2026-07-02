@@ -67,11 +67,13 @@ Install dependencies:
 npm install
 ```
 
-Run tests:
+Run tests with Node.js' built-in test runner. The test command compiles the TypeScript sources first and then runs the JavaScript tests against `dist/`:
 
 ```bash
 npm test
 ```
+
+The project intentionally avoids a separate test framework such as Vite/Vitest to keep the dependency tree small.
 
 Compile the extension:
 
@@ -86,6 +88,8 @@ npm run lint
 ```
 
 Open the project in VS Code and press `F5` to launch an Extension Development Host.
+
+This repository keeps development dependencies intentionally small. The direct development dependencies are limited to TypeScript, VS Code API type definitions, and `@vscode/vsce` for packaging.
 
 ## Build a VSIX Package
 

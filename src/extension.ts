@@ -114,7 +114,7 @@ async function analyseWorkspaceJavaDocuments(activeDocument: vscode.TextDocument
       }
 
       const bytes = await vscode.workspace.fs.readFile(file);
-      const source = Buffer.from(bytes).toString('utf8');
+      const source = new TextDecoder('utf-8').decode(bytes);
       analyses.push(analyseJavaDocument(file.fsPath, source));
     } catch (error) {
       console.warn(`Java Structure Analyser skipped ${file.fsPath}:`, error);

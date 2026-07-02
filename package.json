@@ -44,16 +44,14 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "vitest run",
+    "test": "npm run compile && node --test test/**/*.test.js",
     "lint": "tsc --noEmit -p ./",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/node": "^22.10.1",
     "@types/vscode": "^1.95.0",
     "@vscode/vsce": "^3.9.2",
-    "typescript": "^5.7.2",
-    "vitest": "^4.1.9"
+    "typescript": "^5.7.2"
   }
 }

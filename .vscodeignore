@@ -2,6 +2,7 @@ src/**
 test/**
 .vscode/**
 .github/**
+.test-dist/**
 .gitignore
 tsconfig.json
 *.vsix
