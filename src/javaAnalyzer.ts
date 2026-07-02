@@ -16,7 +16,7 @@ export interface JavaDocumentAnalysis {
 export interface GraphNode {
   id: string;
   label: string;
-  kind: 'selected' | 'incoming' | 'outgoing' | 'pinned';
+  kind: 'selected' | 'incoming' | 'outgoing' | 'open' | 'pinned';
   shape: 'rounded-rectangle';
   pinned: boolean;
   temporary: boolean;
@@ -182,6 +182,64 @@ export function buildGraphForClass(
   };
 }
 
+export function buildGraphForOpenJavaDocuments(
+  current: JavaDocumentAnalysis,
+  openDocuments: JavaDocumentAnalysis[],
+  pinnedNodeIds: ReadonlySet<string> = new Set()
+): StructureGraph {
+  const nodes = new Map<string, GraphNode>();
+  const edges = new Map<string, GraphEdge>();
+  const documentsByClassName = new Map<string, JavaDocumentAnalysis>();
+
+  documentsByClassName.set(current.className, current);
+  for (const document of openDocuments) {
+    documentsByClassName.set(document.className, document.className === current.className ? current : document);
+  }
+
+  const documents = Array.from(documentsByClassName.values());
+
+  for (const document of documents) {
+    const pinned = document.className === current.className || pinnedNodeIds.has(document.className);
+    nodes.set(document.className, {
+      id: document.className,
+      label: document.className,
+      kind: determineOpenDocumentKind(current, document, pinned),
+      shape: 'rounded-rectangle',
+      pinned,
+      temporary: false,
+      filePath: document.filePath
+    });
+  }
+
+  for (const pinnedNodeId of pinnedNodeIds) {
+    if (!nodes.has(pinnedNodeId)) {
+      nodes.set(pinnedNodeId, {
+        id: pinnedNodeId,
+        label: pinnedNodeId,
+        kind: 'pinned',
+        shape: 'rounded-rectangle',
+        pinned: true,
+        temporary: false
+      });
+    }
+  }
+
+  for (const document of documents) {
+    for (const relationship of document.outgoing) {
+      if (!nodes.has(relationship.className)) {
+        continue;
+      }
+      addEdge(edges, document.className, relationship.className, relationship.reasons, false);
+    }
+  }
+
+  return {
+    selectedClass: current.className,
+    nodes: Array.from(nodes.values()).sort(sortNodes),
+    edges: Array.from(edges.values()).sort((a, b) => `${a.from}:${a.to}`.localeCompare(`${b.from}:${b.to}`))
+  };
+}
+
 function stripComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -322,6 +380,26 @@ function uniqueReasons(reasons: RelationshipReason[]): RelationshipReason[] {
   return Array.from(new Set(reasons)).sort() as RelationshipReason[];
 }
 
+function determineOpenDocumentKind(
+  current: JavaDocumentAnalysis,
+  document: JavaDocumentAnalysis,
+  pinned: boolean
+): GraphNode['kind'] {
+  if (document.className === current.className) {
+    return 'selected';
+  }
+
+  if (document.outgoing.some((relationship) => relationship.className === current.className)) {
+    return 'incoming';
+  }
+
+  if (current.outgoing.some((relationship) => relationship.className === document.className)) {
+    return 'outgoing';
+  }
+
+  return pinned ? 'pinned' : 'open';
+}
+
 function splitByComma(value: string): string[] {
   return value.split(',').map((part) => part.trim()).filter(Boolean);
 }
@@ -331,6 +409,6 @@ function matchFirst(source: string, regex: RegExp): string | undefined {
 }
 
 function sortNodes(a: GraphNode, b: GraphNode): number {
-  const order = { selected: 0, incoming: 1, outgoing: 2, pinned: 3 } satisfies Record<GraphNode['kind'], number>;
+  const order = { selected: 0, incoming: 1, outgoing: 2, open: 3, pinned: 4 } satisfies Record<GraphNode['kind'], number>;
   return order[a.kind] - order[b.kind] || a.label.localeCompare(b.label);
 }

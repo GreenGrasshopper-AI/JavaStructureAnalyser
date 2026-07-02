@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { describe, it } = require('node:test');
-const { analyseJavaDocument, buildGraphForClass } = require('../dist/javaAnalyzer');
+const { analyseJavaDocument, buildGraphForClass, buildGraphForOpenJavaDocuments } = require('../dist/javaAnalyzer');
 
 const userServiceSource = `
 package com.example;
@@ -33,6 +33,20 @@ public class UserController {
     UserService service = new UserService(null);
     service.createUser();
   }
+}
+`;
+
+const auditEventSource = `
+package com.example.events;
+
+public class AuditEvent {
+}
+`;
+
+const orderServiceSource = `
+package com.example;
+
+public class OrderService {
 }
 `;
 
@@ -127,5 +141,30 @@ describe('buildGraphForClass', () => {
     });
     assertIncludesEdge(graph.edges, { from: 'UserService', to: 'AuditEvent' });
     assertIncludesEdge(graph.edges, { from: 'UserController', to: 'UserService', reasons: ['instantiates'] });
+  });
+});
+
+describe('buildGraphForOpenJavaDocuments', () => {
+  it('keeps every open Java document visible, including unrelated files', () => {
+    const current = analyseJavaDocument('/workspace/src/UserService.java', userServiceSource);
+    const openDocuments = [
+      current,
+      analyseJavaDocument('/workspace/src/UserController.java', controllerSource),
+      analyseJavaDocument('/workspace/src/AuditEvent.java', auditEventSource),
+      analyseJavaDocument('/workspace/src/OrderService.java', orderServiceSource)
+    ];
+
+    const graph = buildGraphForOpenJavaDocuments(current, openDocuments, new Set());
+
+    assert.deepEqual(
+      graph.nodes.map((node) => node.id).sort(),
+      ['AuditEvent', 'OrderService', 'UserController', 'UserService']
+    );
+    assertIncludesNode(graph.nodes, { id: 'UserService', kind: 'selected', pinned: true, temporary: false });
+    assertIncludesNode(graph.nodes, { id: 'UserController', kind: 'incoming', pinned: false, temporary: false });
+    assertIncludesNode(graph.nodes, { id: 'AuditEvent', kind: 'outgoing', pinned: false, temporary: false });
+    assertIncludesNode(graph.nodes, { id: 'OrderService', kind: 'open', pinned: false, temporary: false });
+    assertIncludesEdge(graph.edges, { from: 'UserController', to: 'UserService', reasons: ['instantiates'] });
+    assertIncludesEdge(graph.edges, { from: 'UserService', to: 'AuditEvent', reasons: ['instantiates'] });
   });
 });

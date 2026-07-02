@@ -20,6 +20,7 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
       --temp: var(--vscode-charts-yellow);
       --incoming: var(--vscode-charts-blue);
       --outgoing: var(--vscode-charts-green);
+      --open: var(--vscode-charts-orange);
       --pinned: var(--vscode-charts-purple);
     }
     body {
@@ -64,6 +65,7 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
     .node.selected rect { stroke: var(--accent); fill: var(--vscode-button-secondaryBackground); }
     .node.incoming rect { stroke: var(--incoming); }
     .node.outgoing rect { stroke: var(--outgoing); }
+    .node.open rect { stroke: var(--open); }
     .node.pinned rect { stroke: var(--pinned); }
     .node.temporary rect { stroke-dasharray: 6 4; opacity: 0.78; }
     .node text { fill: var(--fg); font-weight: 600; pointer-events: none; }
@@ -85,6 +87,7 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
     <span><span class="swatch" style="background: var(--accent)"></span>Selected class</span>
     <span><span class="swatch" style="background: var(--incoming)"></span>Incoming creators/users</span>
     <span><span class="swatch" style="background: var(--outgoing)"></span>Outgoing dependencies</span>
+    <span><span class="swatch" style="background: var(--open)"></span>Open Java editor tabs</span>
     <span><span class="swatch" style="background: var(--pinned)"></span>Pinned</span>
   </div>
   <main id="graph-root"></main>
@@ -94,7 +97,7 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
     const root = document.getElementById('graph-root');
 
     if (!graph) {
-      root.innerHTML = '<section class="empty"><h2>No Java editor is active</h2><p>Open a Java file and run <strong>Java Structure Analyser: Open Graph</strong> again. The graph follows the currently selected Java class.</p></section>';
+      root.innerHTML = '<section class="empty"><h2>No open Java editor tabs</h2><p>Open one or more Java files and run <strong>Java Structure Analyser: Open Graph</strong> again. The graph stays available while you interact with it and shows the Java files currently open as editor tabs.</p></section>';
     } else {
       renderGraph(graph);
     }
@@ -122,13 +125,15 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
       const selected = graph.nodes.find((node) => node.kind === 'selected') || graph.nodes[0];
       const incoming = graph.nodes.filter((node) => node.kind === 'incoming');
       const outgoing = graph.nodes.filter((node) => node.kind === 'outgoing');
+      const open = graph.nodes.filter((node) => node.kind === 'open');
       const pinned = graph.nodes.filter((node) => node.kind === 'pinned');
       const centerY = height / 2;
 
       if (selected) positions[selected.id] = { x: width / 2 - 95, y: centerY - 35 };
       placeColumn(incoming, 110, centerY, positions);
       placeColumn(outgoing, width - 300, centerY, positions);
-      placeColumn(pinned, width / 2 - 95, 110, positions);
+      placeRow(open, width / 2, height - 130, positions);
+      placeRow(pinned, width / 2, 110, positions);
       return positions;
     }
 
@@ -138,10 +143,16 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
       nodes.forEach((node, index) => { positions[node.id] = { x, y: start + index * gap }; });
     }
 
+    function placeRow(nodes, centerX, y, positions) {
+      const gap = 230;
+      const start = centerX - 95 - ((nodes.length - 1) * gap) / 2;
+      nodes.forEach((node, index) => { positions[node.id] = { x: start + index * gap, y }; });
+    }
+
     function renderNode(node, position) {
       const p = position || { x: 40, y: 40 };
       const css = ['node', node.kind, node.temporary ? 'temporary' : 'permanent'].join(' ');
-      const meta = node.pinned ? 'Pinned' : node.temporary ? 'Temporary' : 'Current';
+      const meta = getNodeMeta(node);
       return '<g class="' + css + '" data-node-id="' + escapeAttr(node.id) + '" tabindex="0">'
         + '<rect x="' + p.x + '" y="' + p.y + '" width="190" height="70"></rect>'
         + '<text x="' + (p.x + 95) + '" y="' + (p.y + 34) + '" text-anchor="middle">' + escapeHtml(node.label) + '</text>'
@@ -163,6 +174,13 @@ export function getGraphWebviewHtml(graph: StructureGraph | undefined, nonce: st
       const css = edge.temporary ? 'edge temporary' : 'edge permanent';
       return '<path class="' + css + '" d="' + curve + '"></path>'
         + '<text class="edge-label" x="' + midX + '" y="' + (midY - 8) + '" text-anchor="middle">' + escapeHtml(edge.reasons.join(', ')) + '</text>';
+    }
+
+    function getNodeMeta(node) {
+      if (node.kind === 'selected') return 'Current editor';
+      if (node.pinned) return 'Pinned';
+      if (node.kind === 'open') return 'Open editor';
+      return node.temporary ? 'Temporary' : 'Open editor';
     }
 
     function escapeHtml(value) {

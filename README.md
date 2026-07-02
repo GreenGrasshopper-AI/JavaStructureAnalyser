@@ -8,20 +8,24 @@ Large Java codebases can contain hundreds or thousands of classes. A complete de
 
 - Opens an interactive graph tab inside VS Code.
 - Creates a rounded-rectangle node for the currently active Java class.
-- Shows temporary outgoing relationships, including classes that are instantiated, used as fields, parameters, local variables, imports, or method-call targets.
-- Shows temporary incoming relationships from other workspace classes that reference or instantiate the current class.
+- Keeps every Java file that is currently open as an editor tab visible in the graph.
+- Shows outgoing relationships between open Java tabs, including classes that are instantiated, used as fields, parameters, local variables, imports, or method-call targets.
+- Shows incoming relationships from other open Java tabs that reference or instantiate the current class.
+- Keeps the graph stable while focus is on the webview, so users can interact with it without requiring an active Java editor.
 - Allows users to double-click any graph node to pin it permanently in the diagram.
-- Keeps the diagram focused while the user iteratively navigates through the codebase.
+- Keeps the diagram focused while the user iteratively opens the Java files they care about.
 
 ## How It Works
 
 1. Open a Java workspace in VS Code.
-2. Open a Java file for the class you want to inspect.
-3. Run **Java Structure Analyser: Open Graph** from the Command Palette or the Java editor title menu.
-4. The selected class appears as the central node.
-5. Nearby incoming and outgoing classes are rendered as temporary nodes.
-6. Double-click relevant nodes to pin them permanently.
-7. Move through the codebase and repeat until the diagram represents the structure you care about.
+2. Open the Java files you want to compare as editor tabs.
+3. Open a Java file for the class you want to inspect.
+4. Run **Java Structure Analyser: Open Graph** from the Command Palette or the Java editor title menu.
+5. The selected class appears as the central node.
+6. Every Java file that is currently open as an editor tab is rendered in the graph.
+7. Incoming and outgoing relationships between the open Java tabs are shown as graph edges.
+8. The graph stays visible when focus moves from the Java editor to the graph webview, so you can interact with it without losing the current diagram.
+9. Double-click relevant nodes to pin them permanently.
 
 ## Current Analysis Scope
 

@@ -1,24 +1,26 @@
 import * as vscode from 'vscode';
-import { analyseJavaDocument, buildGraphForClass, JavaDocumentAnalysis } from './javaAnalyzer';
+import { analyseJavaDocument, buildGraphForOpenJavaDocuments, JavaDocumentAnalysis } from './javaAnalyzer';
 import { getGraphWebviewHtml } from './graphWebview';
 
 const PINNED_NODES_KEY = 'javaStructureAnalyser.pinnedNodes';
-const MAX_WORKSPACE_JAVA_FILES = 5000;
 
 export function activate(context: vscode.ExtensionContext): void {
   const command = vscode.commands.registerCommand('javaStructureAnalyser.openGraph', async () => {
     const panel = JavaStructureAnalyserPanel.createOrShow(context);
-    await panel.refresh();
+    await panel.refresh(vscode.window.activeTextEditor?.document);
   });
 
   context.subscriptions.push(
     command,
-    vscode.window.onDidChangeActiveTextEditor(async () => {
+    vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+      await JavaStructureAnalyserPanel.current?.refresh(editor?.document);
+    }),
+    vscode.window.tabGroups.onDidChangeTabs(async () => {
       await JavaStructureAnalyserPanel.current?.refresh();
     }),
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.languageId === 'java') {
-        await JavaStructureAnalyserPanel.current?.refresh();
+        await JavaStructureAnalyserPanel.current?.refresh(document);
       }
     })
   );
@@ -33,6 +35,7 @@ class JavaStructureAnalyserPanel {
 
   private readonly pinnedNodes: Set<string>;
   private readonly disposables: vscode.Disposable[] = [];
+  private currentJavaDocumentPath: string | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -76,17 +79,26 @@ class JavaStructureAnalyserPanel {
     return JavaStructureAnalyserPanel.current;
   }
 
-  async refresh(): Promise<void> {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor || editor.document.languageId !== 'java') {
+  async refresh(preferredDocument?: vscode.TextDocument): Promise<void> {
+    if (preferredDocument?.languageId === 'java') {
+      this.currentJavaDocumentPath = preferredDocument.uri.fsPath;
+    } else {
+      const activeDocument = vscode.window.activeTextEditor?.document;
+      if (activeDocument?.languageId === 'java') {
+        this.currentJavaDocumentPath = activeDocument.uri.fsPath;
+      }
+    }
+
+    const openJavaDocuments = await analyseOpenJavaEditorDocuments(preferredDocument);
+    const currentDocument = selectCurrentDocument(openJavaDocuments, this.currentJavaDocumentPath);
+
+    if (!currentDocument) {
       this.panel.webview.html = getGraphWebviewHtml(undefined, createNonce());
       return;
     }
 
-    const currentDocument = analyseJavaDocument(editor.document.uri.fsPath, editor.document.getText());
-    const workspaceAnalyses = await analyseWorkspaceJavaDocuments(editor.document);
-    const allDocuments = mergeAnalyses(currentDocument, workspaceAnalyses);
-    const graph = buildGraphForClass(currentDocument, allDocuments, this.pinnedNodes);
+    this.currentJavaDocumentPath = currentDocument.filePath;
+    const graph = buildGraphForOpenJavaDocuments(currentDocument, openJavaDocuments, this.pinnedNodes);
     this.panel.webview.html = getGraphWebviewHtml(graph, createNonce());
   }
 
@@ -98,39 +110,67 @@ class JavaStructureAnalyserPanel {
   }
 }
 
-async function analyseWorkspaceJavaDocuments(activeDocument: vscode.TextDocument): Promise<JavaDocumentAnalysis[]> {
-  const files = await vscode.workspace.findFiles(
-    '**/*.java',
-    '**/{node_modules,.git,target,build,out,dist}/**',
-    MAX_WORKSPACE_JAVA_FILES
-  );
-
+async function analyseOpenJavaEditorDocuments(preferredDocument?: vscode.TextDocument): Promise<JavaDocumentAnalysis[]> {
   const analyses: JavaDocumentAnalysis[] = [];
-  for (const file of files) {
+  const seen = new Set<string>();
+
+  for (const uri of getOpenTextTabUris()) {
+    const key = uri.toString();
+    if (seen.has(key) || !isJavaLikeUri(uri)) {
+      continue;
+    }
+    seen.add(key);
+
     try {
-      if (file.fsPath === activeDocument.uri.fsPath) {
-        analyses.push(analyseJavaDocument(activeDocument.uri.fsPath, activeDocument.getText()));
+      const document = await getTextDocument(uri, preferredDocument);
+      if (document.languageId !== 'java' && !isJavaLikeUri(document.uri)) {
         continue;
       }
-
-      const bytes = await vscode.workspace.fs.readFile(file);
-      const source = new TextDecoder('utf-8').decode(bytes);
-      analyses.push(analyseJavaDocument(file.fsPath, source));
+      analyses.push(analyseJavaDocument(document.uri.fsPath, document.getText()));
     } catch (error) {
-      console.warn(`Java Structure Analyser skipped ${file.fsPath}:`, error);
+      console.warn(`Java Structure Analyser skipped ${uri.toString()}:`, error);
     }
   }
 
   return analyses;
 }
 
-function mergeAnalyses(currentDocument: JavaDocumentAnalysis, documents: JavaDocumentAnalysis[]): JavaDocumentAnalysis[] {
-  const byPath = new Map<string, JavaDocumentAnalysis>();
-  byPath.set(currentDocument.filePath, currentDocument);
-  for (const document of documents) {
-    byPath.set(document.filePath, document);
+function getOpenTextTabUris(): vscode.Uri[] {
+  const uris: vscode.Uri[] = [];
+
+  for (const tabGroup of vscode.window.tabGroups.all) {
+    for (const tab of tabGroup.tabs) {
+      if (tab.input instanceof vscode.TabInputText) {
+        uris.push(tab.input.uri);
+      }
+    }
   }
-  return Array.from(byPath.values());
+
+  return uris;
+}
+
+async function getTextDocument(uri: vscode.Uri, preferredDocument?: vscode.TextDocument): Promise<vscode.TextDocument> {
+  if (preferredDocument?.uri.toString() === uri.toString()) {
+    return preferredDocument;
+  }
+
+  const alreadyOpen = vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri.toString());
+  if (alreadyOpen) {
+    return alreadyOpen;
+  }
+
+  return vscode.workspace.openTextDocument(uri);
+}
+
+function selectCurrentDocument(
+  documents: JavaDocumentAnalysis[],
+  currentJavaDocumentPath: string | undefined
+): JavaDocumentAnalysis | undefined {
+  return documents.find((document) => document.filePath === currentJavaDocumentPath) ?? documents[0];
+}
+
+function isJavaLikeUri(uri: vscode.Uri): boolean {
+  return uri.fsPath.toLowerCase().endsWith('.java');
 }
 
 function createNonce(): string {
