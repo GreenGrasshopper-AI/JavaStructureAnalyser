@@ -1,0 +1,48 @@
+{
+  "name": "java-structure-analyser",
+  "displayName": "Java Structure Analyser",
+  "description": "An interactive VS Code extension for building focused Java structure diagrams iteratively.",
+  "version": "0.1.0",
+  "publisher": "greengrasshopper-ai",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:javaStructureAnalyser.openGraph"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "javaStructureAnalyser.openGraph",
+        "title": "Java Structure Analyser: Open Graph"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "javaStructureAnalyser.openGraph",
+          "when": "resourceLangId == java",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "vitest run",
+    "lint": "tsc --noEmit -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.9"
+  }
+}
