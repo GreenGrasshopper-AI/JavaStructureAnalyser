@@ -355,7 +355,6 @@ export class Renderer {
                 this.drawElement(placement);
             }
         }
-        this.drawCreationLinks();
         this.drawPathArrows();
 
         context.restore();
@@ -376,7 +375,7 @@ export class Renderer {
         this.linkPlacements = [];
         const { context, palette } = this;
         for (const placement of this.placements.values()) {
-            if (placement.element.kind !== 'base' || this.viewModel.hasIncomingCreationLink(placement.element.id)) {
+            if (placement.element.kind !== 'base') {
                 continue;
             }
             const holders = this.viewModel.holdersByTypeId.get(placement.element.typeId) ?? [];
@@ -926,38 +925,6 @@ export class Renderer {
                 context.stroke();
                 context.restore();
             }
-        }
-    }
-
-    /** Gestrichelte blaue Linien: Methode erzeugt sichtbaren Startpunkt per new. */
-    private drawCreationLinks(): void {
-        const { context, palette } = this;
-        for (const link of this.viewModel.creationLinks.values()) {
-            const parent = this.placements.get(link.parentElementId);
-            const child = this.placements.get(link.childElementId);
-            const methodSlot = parent?.layout.methodSlots.find((slot) => slot.method.name === link.methodName);
-            if (!parent || !child || !methodSlot) {
-                continue;
-            }
-            const source: Rect = {
-                x: parent.x + methodSlot.x,
-                y: parent.y + methodSlot.y,
-                width: methodSlot.width,
-                height: methodSlot.height,
-            };
-            const target: Rect = {
-                x: child.x,
-                y: child.y,
-                width: child.layout.bodyWidth,
-                height: child.layout.bodyHeight,
-            };
-            const { x1, y1, x2, y2 } = linkAnchors(source, target);
-            drawArrow(context, x1, y1, x2, y2, {
-                color: palette.accent,
-                lineWidth: 1.5,
-                alpha: 0.75,
-                dashed: true,
-            });
         }
     }
 
