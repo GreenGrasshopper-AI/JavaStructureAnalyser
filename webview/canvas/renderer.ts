@@ -446,11 +446,9 @@ export class Renderer {
     }
 
     /**
-     * Zeichnet Andock-Linien von einem Halter-Geist zu bereits sichtbaren Objekten
-     * desselben Typs, die den Startpunkt über ein Feld halten. Doppelklick auf eine
-     * Linie hängt den Startpunkt dort an (siehe ViewModel.attachToParent) — dadurch
-     * bleibt der Nutzer Herr über Mehrdeutigkeiten (mehrere mögliche Eltern) statt
-     * dass automatisch verknüpft wird.
+     * Zeichnet Linien von einem Geist zu bereits sichtbaren Objekten desselben Typs.
+     * Feld-Halter bekommen eine interaktive Andock-Linie mit Label; reine Ersteller
+     * bekommen nur eine blaue gestrichelte Hinweislinie ohne Aktion/Label.
      */
     private drawAdoptionLinks(
         child: Placement,
@@ -461,6 +459,7 @@ export class Renderer {
     ): void {
         const fieldVias = holder.vias.filter((via) => via.kind === 'field');
         if (fieldVias.length === 0) {
+            this.drawCreatorHintLinks(child, holder, ghostX, ghostY, ghostWidth);
             return; // nur per new erzeugt → kann kein Feld-Kind werden
         }
         const ghostRect: Rect = { x: ghostX, y: ghostY, width: ghostWidth, height: GHOST_HEIGHT };
@@ -486,6 +485,37 @@ export class Renderer {
                 ghostRect,
                 { x: target.x, y: target.y, width: target.layout.bodyWidth, height: target.layout.bodyHeight },
             );
+        }
+    }
+
+    /** Blaue gestrichelte Hinweislinien von Ersteller-Geistern zu sichtbaren Ersteller-Objekten. */
+    private drawCreatorHintLinks(
+        child: Placement,
+        holder: TypeHolder,
+        ghostX: number,
+        ghostY: number,
+        ghostWidth: number,
+    ): void {
+        if (!holder.vias.some((via) => via.kind === 'creation')) {
+            return;
+        }
+        const ghostRect: Rect = { x: ghostX, y: ghostY, width: ghostWidth, height: GHOST_HEIGHT };
+        for (const target of this.placements.values()) {
+            if (target.element.typeId !== holder.holderTypeId || target.element.id === child.element.id) {
+                continue;
+            }
+            const { x1, y1, x2, y2 } = linkAnchors(ghostRect, {
+                x: target.x,
+                y: target.y,
+                width: target.layout.bodyWidth,
+                height: target.layout.bodyHeight,
+            });
+            drawArrow(this.context, x1, y1, x2, y2, {
+                color: this.palette.accent,
+                lineWidth: 1.4,
+                alpha: 0.65,
+                dashed: true,
+            });
         }
     }
 
