@@ -1,9 +1,14 @@
-src/**
-test/**
 .vscode/**
-.github/**
-.test-dist/**
-.gitignore
+dist/smokeTest.js
+src/**
+webview/**
+scripts/**
+testdata/**
+node_modules/**
+out-types/**
+esbuild.js
 tsconfig.json
-*.vsix
-node_modules/**/.cache/**
+tsconfig.webview.json
+.gitignore
+**/*.map
+Mentales Modell Idee.png

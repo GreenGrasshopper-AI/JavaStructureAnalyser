@@ -1,40 +1,48 @@
 {
   "name": "java-structure-analyser",
   "displayName": "Java Structure Analyser",
-  "description": "An interactive VS Code extension for building focused Java structure diagrams iteratively.",
+  "description": "Selbst gezeichneter Canvas, der ein Java-Programm als mentales Modell in Objektsicht visualisiert",
   "version": "0.1.0",
   "publisher": "greengrasshopper-ai",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser.git"
-  },
-  "bugs": {
-    "url": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser/issues"
-  },
-  "homepage": "https://github.com/GreenGrasshopper-AI/JavaStructureAnalyser#readme",
+  "private": true,
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
-    "Visualization",
-    "Other"
-  ],
-  "activationEvents": [
-    "onCommand:javaStructureAnalyser.openGraph"
+    "Visualization"
   ],
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:java"
+  ],
   "contributes": {
     "commands": [
       {
-        "command": "javaStructureAnalyser.openGraph",
-        "title": "Java Structure Analyser: Open Graph"
+        "command": "javaStructureAnalyser.openCanvas",
+        "title": "Open Structure Canvas",
+        "category": "Java Structure",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "javaStructureAnalyser.saveCanvas",
+        "title": "Save Structure Canvas As…",
+        "category": "Java Structure"
+      },
+      {
+        "command": "javaStructureAnalyser.loadCanvas",
+        "title": "Open Structure Canvas from File…",
+        "category": "Java Structure"
+      },
+      {
+        "command": "javaStructureAnalyser.dumpModel",
+        "title": "Dump Model (Debug)",
+        "category": "Java Structure"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "javaStructureAnalyser.openGraph",
+          "command": "javaStructureAnalyser.openCanvas",
           "when": "resourceLangId == java",
           "group": "navigation"
         }
@@ -42,16 +50,22 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "test": "npm run compile && node --test test/**/*.test.js",
-    "lint": "tsc --noEmit -p ./",
-    "vscode:prepublish": "npm run compile",
-    "package": "vsce package"
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit -p ./ && tsc --noEmit -p tsconfig.webview.json",
+    "watch": "node esbuild.js --watch",
+    "package": "npm run check-types && node esbuild.js --production",
+    "test:analyzer": "npm run compile && node scripts/analyzerSmokeTest.js",
+    "vsix": "npm run package && vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "devDependencies": {
-    "@types/vscode": "^1.95.0",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.9.2",
-    "typescript": "^5.7.2"
+    "esbuild": "^0.25.0",
+    "tree-sitter-wasms": "^0.1.11",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "web-tree-sitter": "^0.25.0"
   }
 }

@@ -1,131 +1,101 @@
 # Java Structure Analyser
 
-Java Structure Analyser is a Visual Studio Code extension for interactively building focused structure diagrams for Java projects.
+VSCode-Extension mit einem **komplett selbst gezeichneten Canvas** (HTML5 Canvas 2D, keine Fremdbibliothek), der ein Java-Programm als **mentales Modell in Objektsicht** visualisiert.
 
-Large Java codebases can contain hundreds or thousands of classes. A complete dependency diagram for such a project is often too dense to be useful. This extension takes a different approach: it follows the currently selected Java file, shows nearby incoming and outgoing relationships temporarily, and lets the user pin only the nodes that matter.
+> Konzept-Skizze: siehe `Mentales Modell Idee.png` im Repository.
 
-## Features
+## Visuelle Sprache
 
-- Opens an interactive graph tab inside VS Code.
-- Creates a rounded-rectangle node for the currently active Java class.
-- Keeps every Java file that is currently open as an editor tab visible in the graph.
-- Shows outgoing relationships between open Java tabs, including classes that are instantiated, used as fields, parameters, local variables, imports, or method-call targets.
-- Shows incoming relationships from other open Java tabs that reference or instantiate the current class.
-- Keeps the graph stable while focus is on the webview, so users can interact with it without requiring an active Java editor.
-- Allows users to double-click any graph node to pin it permanently in the diagram.
-- Keeps the diagram focused while the user iteratively opens the Java files they care about.
+- **Großes abgerundetes Rechteck = Objekt** — Objektname oben links, Klassenname klein oben rechts (`«interface»`/`«abstract»`/… als Präfix), darunter ggf. `extends …` / `implements …`
+- **Orange Kreise = Instanzvariablen** (selbst Objekte); drei überlappende Kreise = Array/Collection; graue Kreise = nicht im Workspace auflösbar (JDK-/Bibliothekstypen)
+- **Graue Quadrate = primitive Werte** (`int`, `boolean`, …) — bewusst keine Kreise, weil Werte keine Objekte sind
+- **Blaue Kästchen unten = Methoden** (überlappen die Unterkante des Objekts); **Konstruktoren in dunklerem Blau**
+- **Vererbungskette oberhalb jedes Objekts**: die selbst geschriebenen Oberklassen (nicht `Object` & Co.) werden automatisch darüber gestapelt, verbunden mit `«extends»`-Pfeilen
+- **Blaue Pfeile = Aufrufpfade**: Methode → benutzte Instanzvariable → deren Objekt, rechts daneben aufgeklappt, mit Pfeil auf die dort aufgerufene Methode
+- **Halbtransparente Kästchen links eines Startpunkts**: die Antwort auf „woher kommt dieses Objekt?" — **Halter** (durchgezogener oranger Rahmen) halten es als Instanzvariable (`⊚ feldname`), auch **polymorph** über ein Feld eines Supertyps (`⊚ feldname als SeitenPanel`); **Ersteller** (gestrichelter blauer Rahmen) erzeugen es nur in einer Methode (`new in methode()`)
+- **Blaue gestrichelte Andock-Linie** (`⇔ andocken`): verbindet einen Geist mit einem bereits sichtbaren Objekt, mit dem sich der Startpunkt verbinden ließe — **Doppelklick** darauf hängt ihn dort an. Erscheint an drei Stellen: am **Halter-Geist** (Andocken als Feld-Kind), am **Subtyp-Geist** (vorhandenes Objekt als Realisierung andocken statt eine Kopie zu erzeugen) und an der **Oberklassen-Box** eines Startpunkts (die Oberklasse ist schon als Objekt sichtbar → dort als Realisierung andocken)
+- **Halbtransparente Kästchen unterhalb eines Objekts = Subtyp-Geister**: die direkten Unterklassen/Implementierungen des Typs — also die Antwort auf „welche konkreten Klassen kann dieses Objekt sein?" (v. a. bei `«abstract»`/`«interface»`)
+- **Realisierte Subtypen**: per Doppelklick auf einen Subtyp-Geist wird die konkrete Klasse als eigenes Objekt unter der übergeordneten Klasse eingeblendet (`«extends»`/`«implements»`-Pfeil nach oben); die übergeordnete Klasse bleibt mit ihrem Parent verbunden, mehrere Realisierungen teilen sich dasselbe Element
 
-## How It Works
+## Bedienung
 
-1. Open a Java workspace in VS Code.
-2. Open the Java files you want to compare as editor tabs.
-3. Open a Java file for the class you want to inspect.
-4. Run **Java Structure Analyser: Open Graph** from the Command Palette or the Java editor title menu.
-5. The selected class appears as the central node.
-6. Every Java file that is currently open as an editor tab is rendered in the graph.
-7. Incoming and outgoing relationships between the open Java tabs are shown as graph edges.
-8. The graph stays visible when focus moves from the Java editor to the graph webview, so you can interact with it without losing the current diagram.
-9. Double-click relevant nodes to pin them permanently.
+Der Canvas ist zu Beginn leer. **Java-Dateien per Drag&Drop** aus dem Explorer auf den Canvas ziehen — sie werden zu **Startpunkten**, links daneben erscheinen automatisch ihre Halter.
 
-## Current Analysis Scope
+| Aktion | Effekt |
+|---|---|
+| **Java-Datei auf den Canvas ziehen** | Legt den Typ als Startpunkt an der Drop-Position an (bleibt dauerhaft, inkl. Position) |
+| **Doppelklick auf Halter-Geist** | Macht den Halter zum **neuen** Startpunkt und hängt **alle** elternlosen Startpunkte, die er als **Feld** hält, samt ihren Bäumen an (als hätte man von ihm aus expandiert); polymorph gehaltene docken als **Realisierung** unter der Feld-Expansion an; Startpunkte, die er nur **per `new`** erzeugt, bleiben eigenständig stehen |
+| **Doppelklick auf Andock-Linie** (`⇔ andocken`) | Hängt den Startpunkt unter das **bereits sichtbare** Zielobjekt, das ihn hält (der Geist verschwindet); so entscheidest du bei mehreren möglichen Eltern selbst, welche Verknüpfung entsteht |
+| **Doppelklick** auf Startpunkt | Entfernt nur ihn — der aufgeklappte Baum bleibt stehen, die direkten Kinder werden eigene Startpunkte mit eigenen Haltern (über deren Geist lässt sich der Parent wieder andocken) |
+| **Doppelklick auf Subtyp-Geist** | Realisiert die konkrete Klasse als Objekt unter der übergeordneten Klasse; mehrere Realisierungen nebeneinander möglich, alle bleiben über die übergeordnete Klasse mit dem Parent verbunden |
+| **Doppelklick** auf realisiertes Objekt | Entfernt die Realisierung — sein aufgeklappter Teilbaum bleibt als eigene Startpunkte stehen |
+| **Klick** auf Objektfläche / Halter-Geist / Subtyp-Geist / Oberklasse | Öffnet die Datei im Editor |
+| Klick auf **Methoden-Kästchen** | Blendet dessen Aufrufpfade ein/aus |
+| Klick auf **Instanzvariablen-Kreis** | Klappt das Zielobjekt rechts auf/zu (rekursiv möglich) |
+| **Ctrl+Klick** auf Methode/Kreis | Springt zur Deklaration im Editor |
+| Drag auf Objekt / Freifläche | Verschieben / Pan · **Mausrad** = Zoom auf Cursor |
 
-The current implementation uses lightweight static parsing to identify common Java relationships:
+Falls der Drop nicht ankommt (VSCode fängt den Drag ab), beim Ziehen **Shift gedrückt halten**.
 
-- `new ClassName(...)` instantiations
-- field declarations
-- constructor and method parameters
-- local variable declarations
-- imports
-- static method calls
-- method calls on variables with known local or parameter types
+Commands (Ctrl+Shift+P):
 
-This makes the extension fast and dependency-light, while leaving room for future integration with richer Java language-server metadata.
+- **„Java Structure: Open Structure Canvas"** — öffnet den Canvas (auch als Icon im Editor-Titel bei Java-Dateien)
+- **„Java Structure: Save Structure Canvas As…"** — speichert den aktuellen Canvas (Pins, Positionen, Expansionen, Viewport) als `.javacanvas.json`-Datei, z. B. zum Einchecken oder für mehrere Modelle pro Projekt
+- **„Java Structure: Open Structure Canvas from File…"** — lädt eine gespeicherte Canvas-Datei (ersetzt den aktuellen Stand)
 
-## Requirements
+Unabhängig davon überlebt der zuletzt bearbeitete Stand einen VSCode-Neustart automatisch (workspaceState).
 
-- Visual Studio Code `1.95.0` or newer.
-- A workspace containing Java source files.
-- Node.js and npm for development or packaging from source.
+**Doppelte Klassennamen:** Deklarieren mehrere Dateien denselben Typ (z. B. Backup-/Archiv-Kopien), verwendet die Analyse pro Typ **eine** kanonische Datei (die flacher/kürzer im Pfad liegende) und meldet die Duplikate einmalig als Warnung. So bleibt das Modell konsistent — sonst könnten Halter Felder „kennen", die der gezeichnete Typ (aus einer anderen Kopie) gar nicht hat.
 
-## Install from a VSIX Package
+## Entwicklung
 
-After a `.vsix` file has been built, install it in one of these ways:
+```bash
+npm install
+npm run compile        # Typecheck + Bundles (dist/)
+npm run watch          # esbuild-Watch
+npm run test:analyzer  # Parser-Smoke-Test gegen testdata/ (ohne VSCode)
+```
 
-### VS Code UI
+**F5** startet den Extension Development Host mit dem Beispielprojekt `testdata/` (kleines Spiel: `GameLoop` → `Player`/`Board`/`Enemy` → `Position`/`Inventory`/`Tile`).
 
-1. Open the Extensions view.
-2. Select **...** → **Install from VSIX...**.
-3. Choose the generated file, for example `java-structure-analyser-0.1.0.vsix`.
+## Als VSIX exportieren & installieren
 
-### Command Line
+```bash
+npm run vsix           # Production-Build + java-structure-analyser-<version>.vsix
+```
+
+Installation der erzeugten Datei wahlweise über die Kommandozeile …
 
 ```bash
 code --install-extension java-structure-analyser-0.1.0.vsix
 ```
 
-## Development
+… oder in VSCode: Extensions-Ansicht → `…`-Menü → **„Install from VSIX…"**.
 
-Install dependencies:
+## Architektur
 
-```bash
-npm install
+```
+src/                     Extension-Host (Node)
+  extension.ts           Aktivierung, Commands
+  controller.ts          verdrahtet Editor-Events ↔ Modell ↔ Webview
+  panel/canvasPanel.ts   WebviewPanel + CSP-HTML
+  analyzer/              vscode-frei (Node-testbar)
+    parserService.ts     web-tree-sitter (WASM, java-Grammatik)
+    modelBuilder.ts      AST → JavaType/JavaField/JavaMethod (+ Feld-Aufrufe, new-Ausdrücke)
+    typeResolver.ts      Import-/Package-/Simple-Name-Heuristik
+    holders.ts           Rückwärtssuche: wer hält einen Typ (Feld / new in Methode)?
+    modelStore.ts        Modell-Cache pro Datei
+  workspace/             workspaceIndex (findFiles + Watcher)
+  state/persistence.ts   workspaceState: nur User-Intent (Pins, Positionen, Expansionen, Viewport)
+  shared/                Modell + Nachrichtenprotokoll (auch vom Webview importiert)
+
+webview/                 Browser (eigenes Bundle, selbst gezeichnet)
+  canvas/renderer.ts     rAF-Loop, Platzierung, Theme-Farben aus CSS-Variablen
+  canvas/layout.ts       Innenlayout der Objekt-Elemente
+  canvas/camera.ts       Pan/Zoom-Transformation
+  canvas/shapes.ts       Rechtecke, Kreis-Cluster, Bezier-Pfeile
+  interaction.ts         Maus-Gesten (Klick/Doppelklick/Drag/Wheel, Hit-Testing)
+  viewModel.ts           Elemente, Expansionen (`parent/feldname`), sichtbare Pfade
 ```
 
-Run tests with Node.js' built-in test runner. The test command compiles the TypeScript sources first and then runs the JavaScript tests against `dist/`:
-
-```bash
-npm test
-```
-
-The project intentionally avoids a separate test framework such as Vite/Vitest to keep the dependency tree small.
-
-Compile the extension:
-
-```bash
-npm run compile
-```
-
-Run TypeScript type checking without emitting files:
-
-```bash
-npm run lint
-```
-
-Open the project in VS Code and press `F5` to launch an Extension Development Host.
-
-This repository keeps development dependencies intentionally small. The direct development dependencies are limited to TypeScript, VS Code API type definitions, and `@vscode/vsce` for packaging.
-
-## Build a VSIX Package
-
-This repository includes `@vscode/vsce` as a development dependency and exposes an npm script for packaging.
-
-Build the extension package:
-
-```bash
-npm run package
-```
-
-The package command runs the VS Code prepublish step first, so the TypeScript sources are compiled into `dist/` before the `.vsix` file is created.
-
-Expected output artifact:
-
-```text
-java-structure-analyser-0.1.0.vsix
-```
-
-Before publishing or sharing a package, it is recommended to run the full local verification set:
-
-```bash
-npm test
-npm run lint
-npm run compile
-npm run package
-```
-
-## Repository Goals
-
-The project is intended to explore an iterative, user-curated diagramming workflow for large Java systems. Rather than attempting to render the entire application at once, it helps developers build an understandable structural map one class at a time.
-
-## License
-
-MIT
+Grundprinzip der Persistenz: **Kanten und Inhalte werden nie gespeichert**, sondern bei jedem Start neu aus dem Code abgeleitet — gespeichert wird nur, *was der Benutzer angeordnet hat*.

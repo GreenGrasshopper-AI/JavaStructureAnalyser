@@ -1,7 +1,4 @@
 node_modules/
 dist/
-.test-dist/
+out-types/
 *.vsix
-.vscode-test/
-.DS_Store
-.env
