@@ -12,6 +12,7 @@ import { ParserService } from '../src/analyzer/parserService';
 import { computeSubtypes } from '../src/analyzer/subtypes';
 import { resolveTypeName, TypeIndex, TypeIndexEntry } from '../src/analyzer/typeResolver';
 import { JavaType } from '../src/shared/javaModel';
+import { ViewModel } from '../webview/viewModel';
 
 const failures: string[] = [];
 
@@ -223,6 +224,62 @@ async function main(): Promise<void> {
     expect(
         computeSubtypes(types.values(), 'game.Player').length === 0,
         'Player darf keine Subtypen haben',
+    );
+
+    // --- ViewModel: reine Ersteller-Geister per Methoden-Link verknüpfen ---
+    const zeroRange = { startLine: 0, startCol: 0, endLine: 0, endCol: 0 };
+    const factoryType: JavaType = {
+        id: 'sample.Factory',
+        simpleName: 'Factory',
+        kind: 'class',
+        filePath: '/tmp/Factory.java',
+        displayPath: 'Factory.java',
+        nameRange: zeroRange,
+        superTypes: [],
+        fields: [],
+        methods: [
+            {
+                name: 'makeWidget',
+                signatureLabel: 'makeWidget()',
+                isStatic: false,
+                isConstructor: false,
+                declRange: zeroRange,
+                fieldCalls: [],
+                creations: [{ typeRef: { name: 'Widget', resolvedId: 'sample.Widget' }, callRange: zeroRange }],
+            },
+        ],
+    };
+    const widgetType: JavaType = {
+        id: 'sample.Widget',
+        simpleName: 'Widget',
+        kind: 'class',
+        filePath: '/tmp/Widget.java',
+        displayPath: 'Widget.java',
+        nameRange: zeroRange,
+        superTypes: [],
+        fields: [],
+        methods: [],
+    };
+    const creationView = new ViewModel();
+    creationView.upsertTypes([factoryType, widgetType]);
+    creationView.addStartPoints([widgetType], 100, 100);
+    creationView.mergeHolders({
+        'sample.Widget': [{ holderTypeId: 'sample.Factory', vias: [{ kind: 'creation', memberName: 'makeWidget' }] }],
+    });
+    creationView.rerootToHolder('sample.Factory', 20, 40);
+    const creationLinks = [...((creationView as unknown as { creationLinks?: Map<string, unknown> }).creationLinks?.values() ?? [])] as {
+        parentElementId?: string;
+        childElementId?: string;
+        methodName?: string;
+    }[];
+    expect(
+        creationLinks.some(
+            (link) =>
+                link.parentElementId === 'sample.Factory' &&
+                link.childElementId === 'sample.Widget' &&
+                link.methodName === 'makeWidget',
+        ),
+        `ViewModel: reiner Ersteller-Geist muss Widget per Methoden-Link an Factory.makeWidget hängen (${JSON.stringify(creationLinks)})`,
     );
 
     if (failures.length > 0) {

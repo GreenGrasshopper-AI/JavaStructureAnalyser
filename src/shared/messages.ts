@@ -1,5 +1,12 @@
 import { JavaType, TypeHolder, TypeSubtype } from './javaModel';
 
+/** User-gesetzte Verbindung: ein sichtbares Objekt wurde in einer Methode per new erzeugt. */
+export interface CreationLink {
+    parentElementId: string;
+    childElementId: string;
+    methodName: string;
+}
+
 /**
  * Persistierter View-State. Es wird ausschließlich User-Intent gespeichert —
  * alle Kanten/Inhalte werden bei jedem Start neu aus dem Code abgeleitet.
@@ -23,6 +30,8 @@ export interface PersistedView {
      * mit dem Parent verbunden; alle realisierten Subtypen hängen darunter.
      */
     realizedSubtypes: string[];
+    /** Per Doppelklick bestätigte new-Beziehungen: Methode erzeugt sichtbaren Startpunkt. */
+    creationLinks: CreationLink[];
     viewport: { x: number; y: number; scale: number };
 }
 
@@ -34,6 +43,7 @@ export function emptyView(): PersistedView {
         expansions: [],
         expansionOffsets: {},
         realizedSubtypes: [],
+        creationLinks: [],
         viewport: { x: 0, y: 0, scale: 1 },
     };
 }

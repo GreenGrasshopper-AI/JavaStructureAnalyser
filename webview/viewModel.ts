@@ -1,5 +1,5 @@
 import { JavaType, TypeHolder, TypeSubtype } from '../src/shared/javaModel';
-import { emptyView, PersistedView } from '../src/shared/messages';
+import { CreationLink, emptyView, PersistedView } from '../src/shared/messages';
 
 /**
  * Ein Element auf dem Canvas.
@@ -62,6 +62,8 @@ export class ViewModel {
     /** Element-IDs realisierter Subtypen: `${parentElementId}~${subtypeId}`. */
     public realizedSubtypes = new Set<string>();
     public expansionOffsets = new Map<string, { dx: number; dy: number }>();
+    /** Vom Nutzer bestätigte new-Beziehungen: childElementId -> Methoden-Link. */
+    public creationLinks = new Map<string, CreationLink>();
     /** Halter je Typ (wer hält diesen Typ als Feld / erzeugt ihn in einer Methode). */
     public readonly holdersByTypeId = new Map<string, TypeHolder[]>();
     /** Direkte Subtypen je Typ (wer beerbt/implementiert diesen Typ). */
@@ -79,6 +81,7 @@ export class ViewModel {
         this.expansions = new Set(view.expansions);
         this.realizedSubtypes = new Set(view.realizedSubtypes ?? []);
         this.expansionOffsets = new Map(Object.entries(view.expansionOffsets ?? {}));
+        this.creationLinks = new Map((view.creationLinks ?? []).map((link) => [link.childElementId, link]));
         this.initialViewport = view.viewport;
         return this.rebuild();
     }
@@ -223,8 +226,31 @@ export class ViewModel {
             }
         }
 
+        this.cleanupCreationLinks();
+
         this.recomputeOrder();
         return { missingTypeIds: [...missingTypeIds] };
+    }
+
+    /** Entfernt stale Methoden-Links, wenn Parent/Kind/Methode nicht mehr existieren oder nicht mehr passen. */
+    private cleanupCreationLinks(): void {
+        for (const [childElementId, link] of [...this.creationLinks]) {
+            const child = this.elements.get(link.childElementId);
+            const parent = this.elements.get(link.parentElementId);
+            const parentType = parent ? this.types.get(parent.typeId) : undefined;
+            const method = parentType?.methods.find((candidate) => candidate.name === link.methodName);
+            const stillCreatesChild = method?.creations.some((creation) => creation.typeRef.resolvedId === child?.typeId) === true;
+            if (
+                childElementId !== link.childElementId ||
+                child?.kind !== 'base' ||
+                parent === undefined ||
+                parent.id === child.id ||
+                isWithinSubtree(link.parentElementId, child.id) ||
+                !stillCreatesChild
+            ) {
+                this.creationLinks.delete(childElementId);
+            }
+        }
     }
 
     /** Erzeugt das Element einer gespeicherten Expansion, sofern ihre Kette intakt ist. */
@@ -419,6 +445,16 @@ export class ViewModel {
         this.expansions = new Set([...this.expansions].map(map));
         this.realizedSubtypes = new Set([...this.realizedSubtypes].map(map));
         this.expansionOffsets = new Map([...this.expansionOffsets].map(([id, offset]) => [map(id), offset]));
+        this.creationLinks = new Map(
+            [...this.creationLinks.values()].map((link) => {
+                const mappedLink = {
+                    ...link,
+                    parentElementId: map(link.parentElementId),
+                    childElementId: map(link.childElementId),
+                };
+                return [mappedLink.childElementId, mappedLink];
+            }),
+        );
         this.visibleMethodPaths = new Set(
             [...this.visibleMethodPaths].map((key) => {
                 const hashIndex = key.lastIndexOf('#');
@@ -444,6 +480,11 @@ export class ViewModel {
         for (const key of [...this.visibleMethodPaths]) {
             if (key.startsWith(`${rootId}#`) || key.startsWith(`${rootId}/`) || key.startsWith(`${rootId}~`)) {
                 this.visibleMethodPaths.delete(key);
+            }
+        }
+        for (const [childElementId, link] of [...this.creationLinks]) {
+            if (isWithinSubtree(link.parentElementId, rootId) || isWithinSubtree(link.childElementId, rootId)) {
+                this.creationLinks.delete(childElementId);
             }
         }
     }
@@ -511,6 +552,7 @@ export class ViewModel {
             return false;
         }
         this.pinnedPositions.delete(child.id);
+        this.creationLinks.delete(child.id);
         if (plan.realizedId) {
             this.expansions.add(plan.expansionId); // ggf. bereits offen — dann dort andocken
             this.rekeySubtree(child.id, plan.realizedId);
@@ -520,6 +562,31 @@ export class ViewModel {
             this.expansions.add(plan.expansionId);
         }
         return true;
+    }
+
+    private canLinkCreation(child: CanvasElement, parentElementId: string, parentTypeId: string, methodName: string): boolean {
+        if (child.kind !== 'base' || child.id === parentElementId || isWithinSubtree(parentElementId, child.id)) {
+            return false;
+        }
+        const method = this.types.get(parentTypeId)?.methods.find((candidate) => candidate.name === methodName);
+        return method?.creations.some((creation) => creation.typeRef.resolvedId === child.typeId) === true;
+    }
+
+    private linkCreation(child: CanvasElement, parentElementId: string, parentTypeId: string, methodName: string): boolean {
+        if (!this.canLinkCreation(child, parentElementId, parentTypeId, methodName)) {
+            return false;
+        }
+        this.creationLinks.set(child.id, {
+            parentElementId,
+            childElementId: child.id,
+            methodName,
+        });
+        return true;
+    }
+
+    /** Ein per Methode erzeugter Startpunkt zeigt keine losen Halter-/Ersteller-Geister mehr. */
+    public hasIncomingCreationLink(elementId: string): boolean {
+        return this.creationLinks.has(elementId);
     }
 
     /**
@@ -550,9 +617,20 @@ export class ViewModel {
                 .get(root.typeId)
                 ?.find((candidate) => candidate.holderTypeId === holderTypeId);
             // exakte Feld-Vias stehen vor polymorphen → erstes machbares Andocken gewinnt
+            let attachedAsField = false;
             for (const via of holder?.vias ?? []) {
                 if (via.kind === 'field' && this.attachChildInto(root, parentElementId, holderTypeId, via.memberName)) {
+                    attachedAsField = true;
                     break;
+                }
+            }
+            // Reine Ersteller (kein Feld-Via) werden mit der erzeugenden Methode verbunden.
+            if (!attachedAsField && holder?.vias.every((via) => via.kind === 'creation')) {
+                const via = holder.vias.find((candidate) =>
+                    this.canLinkCreation(root, parentElementId, holderTypeId, candidate.memberName),
+                );
+                if (via) {
+                    this.linkCreation(root, parentElementId, holderTypeId, via.memberName);
                 }
             }
         }
@@ -600,6 +678,7 @@ export class ViewModel {
             return { missingTypeIds: [] };
         }
         this.pinnedPositions.delete(child.id);
+        this.creationLinks.delete(child.id);
         this.rekeySubtree(child.id, realizedId);
         this.realizedSubtypes.add(realizedId);
         return this.rebuild();
@@ -654,6 +733,7 @@ export class ViewModel {
         view.expansions = [...this.expansions];
         view.expansionOffsets = Object.fromEntries(this.expansionOffsets);
         view.realizedSubtypes = [...this.realizedSubtypes];
+        view.creationLinks = [...this.creationLinks.values()];
         view.viewport = viewport;
         return view;
     }
